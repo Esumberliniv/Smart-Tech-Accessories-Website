@@ -344,6 +344,35 @@ h3 { font-size: 1.125rem; }
 .order-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
 .edit-form { display: flex; flex-direction: column; gap: 16px; }
 
+/* ===== ADMIN NAV ===== */
+.admin-subnav { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+.admin-subnav-link { padding: 8px 16px; font-size: 14px; font-weight: 500; color: var(--muted); border-radius: var(--radius) var(--radius) 0 0; transition: color .15s, background .15s; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.admin-subnav-link:hover { color: var(--text); }
+.admin-subnav-link.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ===== LIVE BADGE ===== */
+.live-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.live-badge-on  { background: #D1FAE5; color: #065F46; }
+.live-badge-off { background: #F3F4F6; color: var(--muted); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block; flex-shrink: 0; }
+.live-dot-pulse { animation: dot-pulse 2s infinite; }
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,.5); }
+  50%       { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+}
+
+/* ===== DASHBOARD ===== */
+.dashboard-grid { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+.stat-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.activity-feed { display: flex; flex-direction: column; }
+.activity-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); transition: background .3s; }
+.activity-item:last-child { border-bottom: none; }
+
+/* ===== ROW FLASH (realtime new rows) ===== */
+@keyframes row-flash { 0% { background: #DBEAFE; } 100% { background: transparent; } }
+.row-flash { animation: row-flash 2.5s ease-out forwards; }
+@media (max-width: 768px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
 /* ===== ADMIN ===== */
 .page-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
 .admin-header-actions { display: flex; gap: 8px; }

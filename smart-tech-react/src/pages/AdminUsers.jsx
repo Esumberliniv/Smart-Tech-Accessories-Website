@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 const STATUS_CLASS = { active: 'badge-green', suspended: 'badge-red', pending: 'badge-gray' };
@@ -14,6 +14,18 @@ function userInitials(user) {
   return (user?.email || 'U')[0].toUpperCase();
 }
 
+function AdminNav() {
+  const { pathname } = useLocation();
+  const active = p => pathname === p ? 'admin-subnav-link active' : 'admin-subnav-link';
+  return (
+    <div className="admin-subnav">
+      <Link to="/admin"          className={active('/admin')}>Dashboard</Link>
+      <Link to="/admin/products" className={active('/admin/products')}>Products</Link>
+      <Link to="/admin/users"    className={active('/admin/users')}>Users</Link>
+    </div>
+  );
+}
+
 export default function AdminUsers() {
   const [users, setUsers]             = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -23,9 +35,31 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [page, setPage]               = useState(1);
   const [onlyMissingNames, setOnlyMissingNames] = useState(false);
+  const [newIds, setNewIds]           = useState(new Set());
   const PAGE_SIZE = 5;
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+
+    const channel = supabase
+      .channel('admin-users-rt')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, ({ new: u }) => {
+        setUsers(prev => [u, ...prev]);
+        setNewIds(prev => new Set([...prev, u.id]));
+        setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(u.id); return s; }), 2500);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, ({ new: u }) => {
+        setUsers(prev => prev.map(x => x.id === u.id ? u : x));
+        setSelectedUser(prev => prev?.id === u.id ? u : prev);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, ({ old }) => {
+        setUsers(prev => prev.filter(x => x.id !== old.id));
+        setSelectedUser(prev => prev?.id === old.id ? null : prev);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
 
   async function fetchUsers() {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
@@ -54,15 +88,11 @@ export default function AdminUsers() {
 
   async function handleStatusChange(id, newStatus) {
     await supabase.from('profiles').update({ status: newStatus }).eq('id', id);
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u));
-    if (selectedUser?.id === id) setSelectedUser(prev => ({ ...prev, status: newStatus }));
   }
 
   async function handleDelete(id) {
     if (!window.confirm('Remove this user from profiles? (Auth account remains)')) return;
     await supabase.from('profiles').delete().eq('id', id);
-    setUsers(prev => prev.filter(u => u.id !== id));
-    if (selectedUser?.id === id) setSelectedUser(null);
   }
 
   return (
@@ -71,12 +101,11 @@ export default function AdminUsers() {
         <div className="page-title-row">
           <div>
             <h1>User Management</h1>
-            <p className="text-muted">Manage user roles and account status — live data from Supabase</p>
-          </div>
-          <div className="admin-header-actions">
-            <Link to="/admin" className="btn btn-outline">Product Management</Link>
+            <p className="text-muted">Manage user roles and account status</p>
           </div>
         </div>
+
+        <AdminNav />
 
         <div className="users-layout">
           <div className="users-main">
@@ -95,10 +124,7 @@ export default function AdminUsers() {
                   <input
                     type="checkbox"
                     checked={onlyMissingNames}
-                    onChange={e => {
-                      setOnlyMissingNames(e.target.checked);
-                      setPage(1);
-                    }}
+                    onChange={e => { setOnlyMissingNames(e.target.checked); setPage(1); }}
                   />
                   Show only missing-name profiles
                 </label>
@@ -106,19 +132,12 @@ export default function AdminUsers() {
               {usersMissingNames.length > 0 && (
                 <div style={{ marginTop: '.75rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
                   {usersMissingNames.slice(0, 8).map(u => (
-                    <button
-                      key={u.id}
-                      className="btn btn-outline btn-sm"
-                      onClick={() => setSelectedUser(u)}
-                      title={u.email || u.id}
-                    >
-                      {(u.first_name || '—')} {(u.last_name || '—')} · {(u.email || 'no-email')}
+                    <button key={u.id} className="btn btn-outline btn-sm" onClick={() => setSelectedUser(u)} title={u.email || u.id}>
+                      {(u.first_name || '—')} {(u.last_name || '—')} &middot; {(u.email || 'no-email')}
                     </button>
                   ))}
                   {usersMissingNames.length > 8 && (
-                    <span className="text-muted text-sm" style={{ alignSelf: 'center' }}>
-                      +{usersMissingNames.length - 8} more
-                    </span>
+                    <span className="text-muted text-sm" style={{ alignSelf: 'center' }}>+{usersMissingNames.length - 8} more</span>
                   )}
                 </div>
               )}
@@ -166,7 +185,7 @@ export default function AdminUsers() {
                     {paged.map(u => (
                       <tr
                         key={u.id}
-                        className={selectedUser?.id === u.id ? 'row-highlighted' : ''}
+                        className={`${selectedUser?.id === u.id ? 'row-highlighted' : ''} ${newIds.has(u.id) ? 'row-flash' : ''}`}
                         onClick={() => setSelectedUser(u)}
                         style={{ cursor: 'pointer' }}
                       >
@@ -175,7 +194,7 @@ export default function AdminUsers() {
                             <span className="avatar-sm avatar-initials" aria-hidden="true">{userInitials(u)}</span>
                             <div>
                               <div className="table-product-name">{u.first_name} {u.last_name}</div>
-                              <div className="text-muted text-sm">ID: {u.id.slice(0, 8)}…</div>
+                              <div className="text-muted text-sm">ID: {u.id.slice(0, 8)}&hellip;</div>
                             </div>
                           </div>
                         </td>
@@ -184,11 +203,18 @@ export default function AdminUsers() {
                         <td><span className={`badge ${STATUS_CLASS[u.status] || 'badge-gray'}`}>{STATUS_LABEL[u.status] || '—'}</span></td>
                         <td onClick={e => e.stopPropagation()}>
                           <div className="table-actions">
-                            {u.status !== 'suspended'
-                              ? <button className="icon-btn text-orange" onClick={() => handleStatusChange(u.id, 'suspended')} title="Suspend">🚫</button>
-                              : <button className="icon-btn text-green" onClick={() => handleStatusChange(u.id, 'active')} title="Activate">✅</button>
-                            }
-                            <button className="icon-btn text-muted" onClick={() => handleDelete(u.id)} title="Delete">🗑️</button>
+                            {u.status !== 'suspended' ? (
+                              <button className="icon-btn text-orange" onClick={() => handleStatusChange(u.id, 'suspended')} title="Suspend">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                              </button>
+                            ) : (
+                              <button className="icon-btn text-green" onClick={() => handleStatusChange(u.id, 'active')} title="Activate">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                              </button>
+                            )}
+                            <button className="icon-btn text-muted" onClick={() => handleDelete(u.id)} title="Delete">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -197,14 +223,16 @@ export default function AdminUsers() {
                 </table>
               )}
               <div className="table-footer">
-                <span className="text-muted text-sm">Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+                <span className="text-muted text-sm">
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                </span>
                 {totalPages > 1 && (
                   <div className="pagination">
-                    <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                    <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>&lsaquo;</button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
                       <button key={n} className={`page-btn ${page === n ? 'page-active' : ''}`} onClick={() => setPage(n)}>{n}</button>
                     ))}
-                    <button className="page-btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                    <button className="page-btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>&rsaquo;</button>
                   </div>
                 )}
               </div>
@@ -216,7 +244,7 @@ export default function AdminUsers() {
             {selectedUser ? (
               <>
                 <div className="user-detail-header">
-                  <span className="avatar-lg avatar-initials" aria-hidden="true">{userInitials(selectedUser)}</span>
+                  <span className="avatar-lg avatar-initials" aria-hidden="true" style={{ marginBottom: 8 }}>{userInitials(selectedUser)}</span>
                   <h3>{selectedUser.first_name} {selectedUser.last_name}</h3>
                   <span className={`badge ${STATUS_CLASS[selectedUser.status] || 'badge-gray'}`}>{selectedUser.status}</span>
                 </div>
@@ -235,7 +263,11 @@ export default function AdminUsers() {
               </>
             ) : (
               <div className="user-detail-empty">
-                <div className="empty-icon">👤</div>
+                <div className="empty-icon">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--muted)' }}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
                 <p>Select a user to view details</p>
               </div>
             )}

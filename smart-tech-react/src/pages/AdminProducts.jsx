@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { fallbackForCategory } from '../lib/productImages';
 
@@ -14,6 +14,18 @@ function stockStatus(qty) {
 
 const EMPTY_FORM = { name: '', description: '', category: 'Earbuds', price: '', stock_quantity: '', image_url: '', featured: false };
 
+function AdminNav() {
+  const { pathname } = useLocation();
+  const active = p => pathname === p ? 'admin-subnav-link active' : 'admin-subnav-link';
+  return (
+    <div className="admin-subnav">
+      <Link to="/admin"          className={active('/admin')}>Dashboard</Link>
+      <Link to="/admin/products" className={active('/admin/products')}>Products</Link>
+      <Link to="/admin/users"    className={active('/admin/users')}>Users</Link>
+    </div>
+  );
+}
+
 export default function AdminProducts() {
   const [products, setProducts]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -26,7 +38,25 @@ export default function AdminProducts() {
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => {
+    fetchProducts();
+
+    const channel = supabase
+      .channel('admin-products-rt')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, ({ new: p }) => {
+        setProducts(prev => [p, ...prev]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, ({ new: p }) => {
+        setProducts(prev => prev.map(x => x.id === p.id ? p : x));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'products' }, ({ old }) => {
+        setProducts(prev => prev.filter(x => x.id !== old.id));
+        setSelected(prev => prev.filter(i => i !== old.id));
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
 
   async function fetchProducts() {
     const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
@@ -88,31 +118,24 @@ export default function AdminProducts() {
       featured: form.featured,
     };
 
-    let result;
-    if (editProduct) {
-      result = await supabase.from('products').update(payload).eq('id', editProduct.id);
-    } else {
-      result = await supabase.from('products').insert(payload);
-    }
+    const result = editProduct
+      ? await supabase.from('products').update(payload).eq('id', editProduct.id)
+      : await supabase.from('products').insert(payload);
 
     setSaving(false);
     if (result.error) { setError(result.error.message); return; }
     setShowModal(false);
-    fetchProducts();
   }
 
   async function handleDelete(id) {
     if (!window.confirm('Delete this product?')) return;
     await supabase.from('products').delete().eq('id', id);
-    setSelected(prev => prev.filter(i => i !== id));
-    fetchProducts();
   }
 
   async function bulkDelete() {
     if (!window.confirm(`Delete ${selected.length} products?`)) return;
     await supabase.from('products').delete().in('id', selected);
     setSelected([]);
-    fetchProducts();
   }
 
   return (
@@ -121,13 +144,15 @@ export default function AdminProducts() {
         <div className="page-title-row">
           <div>
             <h1>Product Management</h1>
-            <p className="text-muted">Manage your product inventory — live data from Supabase</p>
+            <p className="text-muted">Manage your product inventory</p>
           </div>
-          <div className="admin-header-actions">
-            <Link to="/admin/users" className="btn btn-outline">User Management</Link>
-            <button className="btn btn-primary" onClick={openAdd}>+ Add Product</button>
-          </div>
+          <button className="btn btn-primary" onClick={openAdd}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Product
+          </button>
         </div>
+
+        <AdminNav />
 
         {/* Filters */}
         <div className="admin-filters card">
@@ -152,9 +177,7 @@ export default function AdminProducts() {
             <input type="checkbox" checked={selected.length === filtered.length && filtered.length > 0} onChange={toggleAll} />
             Select All <span className="text-muted">{selected.length} selected</span>
           </label>
-          <div className="bulk-actions">
-            <button className="btn btn-danger btn-sm" disabled={selected.length === 0} onClick={bulkDelete}>Delete Selected</button>
-          </div>
+          <button className="btn btn-danger btn-sm" disabled={selected.length === 0} onClick={bulkDelete}>Delete Selected</button>
         </div>
 
         {/* Table */}
@@ -185,7 +208,7 @@ export default function AdminProducts() {
                           <img src={p.image_url || fallbackForCategory(p.category)} alt={p.name} className="table-img" />
                           <div>
                             <div className="table-product-name">{p.name}</div>
-                            <div className="text-muted text-sm">{p.description?.slice(0, 50)}...</div>
+                            <div className="text-muted text-sm">{p.description?.slice(0, 50)}&hellip;</div>
                           </div>
                         </div>
                       </td>
@@ -197,8 +220,12 @@ export default function AdminProducts() {
                       <td><span className={`badge ${STATUS_CLASS[status] || 'badge-gray'}`}>{STATUS_LABEL[status]}</span></td>
                       <td>
                         <div className="table-actions">
-                          <button className="icon-btn text-accent" onClick={() => openEdit(p)} aria-label="Edit">✏️</button>
-                          <button className="icon-btn text-muted" onClick={() => handleDelete(p.id)} aria-label="Delete">🗑️</button>
+                          <button className="icon-btn text-accent" onClick={() => openEdit(p)} aria-label="Edit">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button className="icon-btn text-muted" onClick={() => handleDelete(p.id)} aria-label="Delete">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -219,7 +246,9 @@ export default function AdminProducts() {
           <div className="modal">
             <div className="modal-header">
               <h3>{editProduct ? 'Edit Product' : 'Add New Product'}</h3>
-              <button className="icon-btn" onClick={() => setShowModal(false)}>✕</button>
+              <button className="icon-btn" onClick={() => setShowModal(false)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
             <form onSubmit={handleSave} className="modal-body">
               {error && <div className="alert alert-error">{error}</div>}

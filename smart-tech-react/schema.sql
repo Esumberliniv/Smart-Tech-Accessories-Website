@@ -135,3 +135,13 @@ INSERT INTO products (name, description, price, category, image_url, stock_quant
   ('Screen Protector',    'Tempered glass screen protector with 9H hardness and anti-fingerprint coating.',          19, 'Accessories',   'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&w=800&q=80', 500, false),
   ('Smart Glasses',       'Open-ear audio glasses with UV400 protection and built-in microphone.',                  299, 'Accessories',   '/images/products/smart-glasses.png',  45, true),
   ('USB-C Hub',           '7-in-1 USB-C hub with 4K HDMI, SD card reader, and 100W power delivery.',                89, 'Accessories',   '/images/products/usb-c-hub.png', 140, false);
+
+-- ============================================================
+-- Realtime: enable live subscriptions for admin dashboard
+-- Run this ONCE after creating the tables.
+-- In Supabase: Database → Replication → add tables, OR run:
+-- ============================================================
+ALTER TABLE products REPLICA IDENTITY FULL;
+ALTER TABLE profiles  REPLICA IDENTITY FULL;
+ALTER TABLE orders    REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE products, profiles, orders;

@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Cart from './pages/Cart';
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
 import AdminUsers from './pages/AdminUsers';
 import About from './pages/About';
@@ -41,7 +42,8 @@ export default function App() {
             <Route path="/about" element={<AppLayout><About /></AppLayout>} />
             <Route path="/contact" element={<AppLayout><Contact /></AppLayout>} />
             <Route path="/profile" element={<AppLayout><ProtectedRoute><Profile /></ProtectedRoute></AppLayout>} />
-            <Route path="/admin" element={<AppLayout><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></AppLayout>} />
+            <Route path="/admin" element={<AppLayout><ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute></AppLayout>} />
+            <Route path="/admin/products" element={<AppLayout><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></AppLayout>} />
             <Route path="/admin/users" element={<AppLayout><ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute></AppLayout>} />
           </Routes>
         </CartProvider>
