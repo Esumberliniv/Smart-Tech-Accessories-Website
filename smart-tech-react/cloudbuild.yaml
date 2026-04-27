@@ -8,7 +8,7 @@ steps:
       - 'VITE_SUPABASE_ANON_KEY=${_VITE_SUPABASE_ANON_KEY}'
       - '-t'
       - 'gcr.io/$PROJECT_ID/smart-tech-react'
-      - '.'
+      - 'Smart-Tech-Accessories-Website/smart-tech-react'
 
 images:
   - 'gcr.io/$PROJECT_ID/smart-tech-react'
