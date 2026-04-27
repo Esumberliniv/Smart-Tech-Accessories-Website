@@ -1,16 +1,66 @@
-# React + Vite
+# Smart Tech Accessories Website
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An e-commerce web application for smart technology accessories, built with React, Vite, and Supabase.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Frontend:** React 19, React Router v7, Vite
+- **Backend/Database:** Supabase (PostgreSQL, Auth)
+- **Deployment:** Google Cloud Run via Cloud Build
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js 20+
+- A Supabase project
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Local Development
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Esumberliniv/Smart-Tech-Accessories-Website.git
+   cd Smart-Tech-Accessories-Website/smart-tech-react
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create a `.env.local` file from the example:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+4. Fill in your Supabase credentials in `.env.local`:
+   ```
+   VITE_SUPABASE_URL=https://yourproject.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+5. Start the dev server:
+   ```bash
+   npm run dev
+   ```
+
+## Deployment
+
+The app is deployed to Google Cloud Run using Cloud Build with continuous deployment on pushes to `main`.
+
+### Environment Variables (Cloud Build)
+
+Set the following substitution variables in your Cloud Build trigger:
+
+| Variable | Description |
+|---|---|
+| `_VITE_SUPABASE_URL` | Your Supabase project URL |
+| `_VITE_SUPABASE_ANON_KEY` | Your Supabase anon/public key |
+
+### Manual Build
+
+```bash
+npm run build
+```
+
+Output is generated in the `dist/` folder.
