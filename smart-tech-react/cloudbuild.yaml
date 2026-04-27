@@ -10,6 +10,19 @@ steps:
       - 'gcr.io/$PROJECT_ID/smart-tech-react'
       - 'smart-tech-react'
 
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'smart-tech-accessories-website'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/smart-tech-react'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
 images:
   - 'gcr.io/$PROJECT_ID/smart-tech-react'
 
